@@ -12,6 +12,8 @@ ehthumbs.db
 *.msm
 *.msp
 
+.vs/
+
 # User-specific files
 *.user
 *.userosscache

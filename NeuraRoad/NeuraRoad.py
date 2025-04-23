@@ -1,4 +1,9 @@
 ﻿from neo4j import GraphDatabase
+from fastapi import FastAPI
+
+
+app = FastAPI()
+
 
 URI = "neo4j+s://4f900673.databases.neo4j.io"
 AUTH = ("neo4j", "o_oB00gE9NkoBAOGcvp_Xs2ymTN3c44HVgu85qIEJVk")
@@ -240,8 +245,13 @@ def aprender(pergunta, query_correta):
     salvar_dados()
     return f"Exemplo adicionado: {pergunta}"
 
-def consultar_multas(driver, pergunta, api_key):
-    termos = entender_pergunta(pergunta)
+
+class Pergunta(BaseModel):
+    pergunta: str
+
+@app.post("/consultar_multa/")
+def consultar_multas(pergunta: Pergunta):
+    termos = entender_pergunta(pergunta.pergunta)
     texto_proc = " ".join(termos)
     X = vectorizer.transform([texto_proc])
     X = normalizer.transform(X.toarray())
@@ -261,11 +271,7 @@ def consultar_multas(driver, pergunta, api_key):
 
 
 
-
 from neo4j import GraphDatabase
-# import torch
-# import torch.nn as nn
-# import torch.optim as optim
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import Normalizer
 import numpy as np
@@ -292,26 +298,38 @@ class SimpleNN(nn.Module):
 
 # Função de persistência de dados
 def salvar_dados(dados_treino, novos_dados):
-    with open("treino.json", "w") as f:
-        json.dump({
-            "dados_treino": dados_treino,
-            "novos_dados": novos_dados
-        }, f, indent=2)
+    try:
+        # Garantir que a pasta treinoJson exista
+        if not os.path.exists("treinoJson"):
+            os.makedirs("treinoJson")
+        
+        # Salvar os dados no JSON
+        with open("treinoJson/treino.json", "w", encoding="utf-8") as f:
+            json.dump({
+                "dados_treino": dados_treino,
+                "novos_dados": novos_dados
+            }, f, indent=2, ensure_ascii=False)
+        print("[✔] Dados salvos com sucesso.")
+    except Exception as e:
+        print(f"[✖] Erro ao salvar dados: {e}")
 
 def carregar_dados():
     try:
-        if os.path.exists("treino.json"):
-            with open("treino.json", "r") as f:
+        if os.path.exists("treinoJson/treino.json"):
+            with open("treinoJson/treino.json", "r", encoding="utf-8") as f:
                 dados = json.load(f)
+                # Verifica se as chaves 'dados_treino' e 'novos_dados' estão presentes no JSON
                 if "dados_treino" in dados and "novos_dados" in dados:
                     return dados["dados_treino"], dados["novos_dados"]
                 else:
                     print("[!] treino.json incompleto, carregando dados padrão.")
+                    return DADOS_INICIAIS["dados_treino"], DADOS_INICIAIS["novos_dados"]
         else:
             print("[!] treino.json não encontrado, carregando dados padrão.")
+            return DADOS_INICIAIS["dados_treino"], DADOS_INICIAIS["novos_dados"]
     except Exception as e:
         print(f"[✖] Erro ao carregar treino.json: {e}")
-    return DADOS_INICIAIS["dados_treino"], DADOS_INICIAIS["novos_dados"]
+        return DADOS_INICIAIS["dados_treino"], DADOS_INICIAIS["novos_dados"]
 
 # Inicialização de variáveis globais
 modelo_pytorch = None
@@ -514,3 +532,45 @@ with GraphDatabase.driver(URI, auth=AUTH) as driver:
 
     except Exception as erro:
         print(f"[✖] Erro na execução principal: {erro}")
+
+
+
+import json
+import os
+
+# Caminho do arquivo JSON
+file_path = 'treinoJson/treino.json'
+
+# Função para carregar os dados do treino.json
+def carregar_dados():
+    if os.path.exists(file_path):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)  # Carrega todo o conteúdo, incluindo dados_treino e novos_dados
+    return {"dados_treino": [], "novos_dados": []}
+
+# Função para salvar os dados no treino.json
+def salvar_dados(dados):
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(dados, f, ensure_ascii=False, indent=4)
+
+# Exemplo de como adicionar novos dados
+dados = carregar_dados()
+
+# Novos dados a serem adicionados (antes de passar para dados_treino)
+novos_dados = {
+    'pergunta': 'A multa de maior valor é qual?',
+    'query': 'MATCH (m:Multa) RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos ORDER BY m.valor DESC LIMIT 1'
+}
+
+# Adicionar à chave "novos_dados"
+dados['novos_dados'].append(novos_dados)
+
+# Salvar os dados atualizados no arquivo
+salvar_dados(dados)
+
+# Agora, para mover os novos dados para "dados_treino" (validando ou após revisão, por exemplo):
+dados['dados_treino'].extend(dados['novos_dados'])  # Move os dados de novos_dados para dados_treino
+dados['novos_dados'] = []  # Limpa a lista de novos dados
+
+# Salvar novamente após mover os dados
+salvar_dados(dados)
