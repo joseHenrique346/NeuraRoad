@@ -1,0 +1,61 @@
+# Visual Studio for Mac
+.vscode/
+.idea/
+
+# Windows Installer files
+Thumbs.db
+ehthumbs.db
+
+# Windows Installer files
+*.cab
+*.msi
+*.msm
+*.msp
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# User-specific files in VS Code
+.vscode/
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Dd]Release/
+[Dd]ReleasePublic/
+
+# Uncomment if you have tasks that create project's build directories
+# build/
+# bin/
+# obj/
+
+# ASP.NET
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# JetBrains Rider
+.idea/
+
+# Windows Installer files
+Thumbs.db
+ehthumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# VS Code settings
+.settings/
+
+# VS for Mac
+.vscode/
+
+# Backup files
+*.bak
+*.swp
