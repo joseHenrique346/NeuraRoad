@@ -1,10 +1,21 @@
 ﻿from neo4j import GraphDatabase
 from fastapi import FastAPI
-
+from neo4j import GraphDatabase
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import Normalizer, LabelEncoder
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+import json
+import os
+import spacy
+import requests
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
 app = FastAPI()
 
-
+# conexão com banco de dados em grafos
 URI = "neo4j+s://4f900673.databases.neo4j.io"
 AUTH = ("neo4j", "o_oB00gE9NkoBAOGcvp_Xs2ymTN3c44HVgu85qIEJVk")
 try:
@@ -16,11 +27,7 @@ except Exception as e:
     print(f"❌ Falha na conexão: {e}")
 
 
-
-
-
-import spacy
-
+# entende a pergunta separando em verbos
 nlp = spacy.load("pt_core_news_sm")
 
 def entender_pergunta(pergunta):
@@ -32,14 +39,8 @@ def entender_pergunta(pergunta):
     ]
     return termos_chave
 
-print(entender_pergunta("Quais são as multas mais caras?"))
 
-
-
-
-import requests
-import json
-
+# LLM de reescrever o texto
 #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
 
 #https://console.groq.com/home
@@ -62,7 +63,6 @@ def reescrever_com_llm(resposta_ia, pergunta, api_key):
         f"Informação fornecida:\n{resposta_ia}"
     )
 
-
     data = {
         "model": "meta-llama/llama-4-scout-17b-16e-instruct",
         "messages": [
@@ -79,24 +79,6 @@ def reescrever_com_llm(resposta_ia, pergunta, api_key):
         return resposta['choices'][0]['message']['content']
     else:
         return f"Erro na API: {response.status_code}, {response.text}"
-
-
-
-
-
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.preprocessing import Normalizer, LabelEncoder
-import numpy as np
-import json
-import os
-import spacy
-import torch
-import torch.nn as nn
-import torch.optim as optim
-
-# Carrega modelo do spaCy para português
-nlp = spacy.load("pt_core_news_sm")
 
 # 1. Dados iniciais padrão
 DADOS_INICIAIS = {
@@ -245,7 +227,6 @@ def aprender(pergunta, query_correta):
     salvar_dados()
     return f"Exemplo adicionado: {pergunta}"
 
-
 class Pergunta(BaseModel):
     pergunta: str
 
@@ -258,7 +239,7 @@ def consultar_multas(pergunta: Pergunta):
 
     modelo_pytorch.eval()
     with torch.no_grad():
-        entrada_tensor = torch.tensor(X, dtype=torch.float32)
+        entrada_tensor = torch.from_numpy(X).float()
         output = modelo_pytorch(entrada_tensor)
         predicted_idx = torch.argmax(output, dim=1).item()
         query_prevista = encoder.inverse_transform([predicted_idx])[0]
@@ -266,17 +247,43 @@ def consultar_multas(pergunta: Pergunta):
     resultado = executar_query(driver, query_prevista)
     resposta = gerar_resposta(query_prevista, resultado)
 
-    return resposta + "\n\n[IA] Resposta gerada com base nos dados de treino."
+    return {
+    "resposta": resposta + "\n\n[IA] Resposta gerada com base nos dados de treino."
+}
 
+class TreinoData(BaseModel):
+    pergunta: str
+    query: str
 
+@app.post("/treinar/")
+def treinar(data: TreinoData):
+    # Processar a pergunta
+    termos = entender_pergunta(data.pergunta)
+    texto_proc = " ".join(termos)
 
+    # Atualizar o treino.json
+    with open("treinoJson/treino.json", "r+", encoding="utf-8") as f:
+        treino_data = json.load(f)
+        treino_data.append({"pergunta": data.pergunta, "query": data.query})
+        f.seek(0)
+        json.dump(treino_data, f, ensure_ascii=False, indent=4)
+    
+    # Atualizar vetores e labels
+    X_new = vectorizer.transform([texto_proc])
+    X_new = normalizer.transform(X_new.toarray())
+    y_new = encoder.transform([data.query])
 
-from neo4j import GraphDatabase
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.preprocessing import Normalizer
-import numpy as np
-import json
-import os
+    # Treinar incrementalmente
+    modelo_pytorch.train()
+    optimizer.zero_grad()
+    entrada_tensor = torch.from_numpy(X_new).float()
+    target_tensor = torch.tensor(y_new, dtype=torch.long)
+    output = modelo_pytorch(entrada_tensor)
+    loss = criterion(output, target_tensor)
+    loss.backward()
+    optimizer.step()
+
+    return {"mensagem": "Treinamento realizado com sucesso.", "loss": loss.item()}
 
 # Verificar as classes únicas de y_train_encoded
 print(f"Classes únicas em y_train_encoded: {np.unique(y_train_encoded)}")
@@ -532,11 +539,6 @@ with GraphDatabase.driver(URI, auth=AUTH) as driver:
 
     except Exception as erro:
         print(f"[✖] Erro na execução principal: {erro}")
-
-
-
-import json
-import os
 
 # Caminho do arquivo JSON
 file_path = 'treinoJson/treino.json'
