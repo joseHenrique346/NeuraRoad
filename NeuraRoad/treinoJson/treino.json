@@ -1,4 +1,41 @@
 {
-    "dados_treino": [],
+    "dados_treino": [
+        {
+            "pergunta": "A multa de maior valor é qual?",
+            "query": "MATCH (m:Multa) RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos ORDER BY m.valor DESC LIMIT 1"
+        },
+        {
+            "pergunta": "A multa de maior valor é qual?",
+            "query": "MATCH (m:Multa) RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos ORDER BY m.valor DESC LIMIT 1"
+        },
+        {
+            "pergunta": "A multa de maior valor é qual?",
+            "query": "MATCH (m:Multa) RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos ORDER BY m.valor DESC LIMIT 1"
+        },
+        {
+            "pergunta": "A multa de maior valor é qual?",
+            "query": "MATCH (m:Multa) RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos ORDER BY m.valor DESC LIMIT 1"
+        },
+        {
+            "pergunta": "A multa de maior valor é qual?",
+            "query": "MATCH (m:Multa) RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos ORDER BY m.valor DESC LIMIT 1"
+        },
+        {
+            "pergunta": "A multa de maior valor é qual?",
+            "query": "MATCH (m:Multa) RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos ORDER BY m.valor DESC LIMIT 1"
+        },
+        {
+            "pergunta": "A multa de maior valor é qual?",
+            "query": "MATCH (m:Multa) RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos ORDER BY m.valor DESC LIMIT 1"
+        },
+        {
+            "pergunta": "A multa de maior valor é qual?",
+            "query": "MATCH (m:Multa) RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos ORDER BY m.valor DESC LIMIT 1"
+        },
+        {
+            "pergunta": "A multa de maior valor é qual?",
+            "query": "MATCH (m:Multa) RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos ORDER BY m.valor DESC LIMIT 1"
+        }
+    ],
     "novos_dados": []
 }
