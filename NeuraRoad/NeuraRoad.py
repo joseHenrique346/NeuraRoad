@@ -57,7 +57,7 @@ file_path = 'treinoJson/treino.json'
 # Utilitários de dados
 def carregar_dados():
     if os.path.exists(file_path):
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             dados = json.load(f)
             if "dados_treino" not in dados:
                 dados["dados_treino"] = []
@@ -66,11 +66,15 @@ def carregar_dados():
             return dados
     return {"dados_treino": [], "novos_dados": []}
 
-
 # Inicializar modelo com os dados
 dados = carregar_dados()
-perguntas = [item["pergunta"] for item in dados.get("dados_treino", [])]
-queries = [item["query"] for item in dados.get("dados_treino", [])]
+
+def salvar_dados(dados):
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=4)
+# Filtrando os itens de 'dados_treino' para garantir que são dicionários
+perguntas = [item["pergunta"] for item in dados.get("dados_treino", []) if isinstance(item, dict) and "pergunta" in item]
+queries = [item["query"] for item in dados.get("dados_treino", []) if isinstance(item, dict) and "query" in item]
 
 nlp = spacy.load("pt_core_news_sm")
 
@@ -238,17 +242,6 @@ def consultar_multas(data: Pergunta):
         "resposta": resposta + "\n\n(IA) Resposta gerada com base nos dados de treino."
     }
 
-# Funções para carregar e salvar dados
-def carregar_dados():
-    if os.path.exists('treinoJson/treino.json'):
-        with open('treinoJson/treino.json', 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {"dados_treino": [], "novos_dados": []}
-
-def salvar_dados(dados):
-    with open('treinoJson/treino.json', 'w', encoding='utf-8') as f:
-        json.dump(dados, f, ensure_ascii=False, indent=4)
-
 # Função para executar consulta no Neo4j
 def executar_query(driver, query):
     try:
@@ -279,7 +272,7 @@ def gerar_resposta(query, resultado):
 def aprender(pergunta, query_correta):
     dados = carregar_dados()
     dados['novos_dados'].append({'pergunta': pergunta, 'query': query_correta})
-    dados['dados_treino'].append((pergunta, query_correta))
+    dados['dados_treino'].append({"pergunta": pergunta, "query": query_correta})
     salvar_dados(dados)
     return f"Exemplo adicionado: {pergunta}"
 

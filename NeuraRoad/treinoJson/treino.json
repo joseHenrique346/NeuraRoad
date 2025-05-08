@@ -39,6 +39,10 @@
         [
             "Qual a multa mais cara?",
             "MATCH (m:Multa) RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos ORDER BY m.valor DESC LIMIT 1"
+        ],
+        [
+            "Mostre multas por excesso de velocidade",
+            "MATCH (m:Multa) WHERE toLower(m.tipo) CONTAINS 'excesso' RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos"
         ]
     ],
     "novos_dados": []
