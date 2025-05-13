@@ -178,6 +178,9 @@ def treinar(data: TreinoData):
 
     torch.save(modelo.state_dict(), 'modelo_treinado.pth')
 
+    dados["novos_dados"] = []
+    salvar_dados(dados)
+
     return {"mensagem": "Treinamento realizado com sucesso.", "loss": loss.item()}
 
 # Endpoint para consulta

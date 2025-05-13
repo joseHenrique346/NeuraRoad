@@ -63,4 +63,4 @@ __pycache__/
 *.swp
 
 #json de treinamento
-TreinoJson/treino.json
+treinoJson/treino.json

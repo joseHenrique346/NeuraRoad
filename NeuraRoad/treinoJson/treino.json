@@ -1,0 +1,13 @@
+{
+    "dados_treino": [
+        {
+            "pergunta": "Quais infrações são consideradas gravíssimas?",
+            "query": "MATCH (m:Multa) WHERE toLower(m.gravidade) = 'gravíssima' RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos"
+        },
+        {
+            "pergunta": "Mostre multas por excesso de velocidade",
+            "query": "MATCH (m:Multa) WHERE toLower(m.tipo) CONTAINS 'excesso' RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos"
+        }
+    ],
+    "novos_dados": []
+}
