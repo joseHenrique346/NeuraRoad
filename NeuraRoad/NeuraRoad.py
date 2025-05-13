@@ -14,24 +14,27 @@
 # import torch.nn as nn
 # import torch.optim as optim
 
-import torch.optim as optim
-import torch.nn as nn
-import spacy
-from fastapi import FastAPI
-from pydantic import BaseModel
-from neo4j import GraphDatabase
-import torch
-import json
 import os
+import json
+import torch
+import numpy as np
+import spacy
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import Normalizer, LabelEncoder
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from neo4j import GraphDatabase
 
+# Componentes globais
 vectorizer = TfidfVectorizer()
 normalizer = Normalizer()
 encoder = LabelEncoder()
+nlp = spacy.load("pt_core_news_sm")
 
-# Modelo PyTorch (exemplo simples)
+# Caminho do arquivo JSON
+file_path = 'treinoJson/treino.json'
+
+# Modelo de rede neural simples
 class SimpleNN(torch.nn.Module):
     def __init__(self, input_size, output_size):
         super(SimpleNN, self).__init__()
@@ -46,78 +49,63 @@ class SimpleNN(torch.nn.Module):
         x = self.fc3(x)
         return x
 
-
-modelo_pytorch = SimpleNN(1000, 10)  # Ajustar após saber o shape real
-criterion = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(modelo_pytorch.parameters(), lr=0.001)
-
-# Caminho do arquivo JSON
-file_path = 'treinoJson/treino.json'
-
 # Utilitários de dados
 def carregar_dados():
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             dados = json.load(f)
-            if "dados_treino" not in dados:
-                dados["dados_treino"] = []
-            if "novos_dados" not in dados:
-                dados["novos_dados"] = []
+            dados.setdefault("dados_treino", [])
+            dados.setdefault("novos_dados", [])
             return dados
     return {"dados_treino": [], "novos_dados": []}
-
-# Inicializar modelo com os dados
-dados = carregar_dados()
 
 def salvar_dados(dados):
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=4)
-# Filtrando os itens de 'dados_treino' para garantir que são dicionários
-perguntas = [item["pergunta"] for item in dados.get("dados_treino", []) if isinstance(item, dict) and "pergunta" in item]
-queries = [item["query"] for item in dados.get("dados_treino", []) if isinstance(item, dict) and "query" in item]
-
-nlp = spacy.load("pt_core_news_sm")
 
 def entender_pergunta(pergunta):
-    doc = nlp(pergunta.lower())  
-    termos_chave = [token.lemma_ for token in doc if token.pos_ in ["VERB", "NOUN", "ADJ"] and not token.is_stop]
-    return termos_chave
+    doc = nlp(pergunta.lower())
+    return [token.lemma_ for token in doc if token.pos_ in ["VERB", "NOUN", "ADJ"] and not token.is_stop]
 
-if perguntas:
+# Inicialização do modelo com os dados salvos
+def carregar_modelo():
+    dados = carregar_dados()
+    perguntas = [item["pergunta"] for item in dados["dados_treino"]]
+    queries = [item["query"] for item in dados["dados_treino"]]
+
+    if not perguntas:
+        return None, None
+
     termos_proc = [" ".join(entender_pergunta(p)) for p in perguntas]
-    
-    # Vetorização
     X = vectorizer.fit_transform(termos_proc)
     X = normalizer.fit_transform(X.toarray())
-    
-    # Atualiza modelo com tamanho correto
-    input_size = X.shape[1]
-    output_size = len(set(queries))
-    modelo_pytorch = SimpleNN(input_size, output_size)
-    
-    # Recria otimizador e função de perda
-    optimizer = torch.optim.Adam(modelo_pytorch.parameters(), lr=0.001)
-    criterion = torch.nn.CrossEntropyLoss()
-    
-    # Encoding de labels
     y = encoder.fit_transform(queries)
-    entrada_tensor = torch.from_numpy(X).float()
-    target_tensor = torch.tensor(y, dtype=torch.long)
-    
-    # Treinamento
-    modelo_pytorch.train()
-    optimizer.zero_grad()
-    output = modelo_pytorch(entrada_tensor)
-    loss = criterion(output, target_tensor)
-    loss.backward()
-    optimizer.step()
 
-# Conexão com o Neo4j
-URI = "neo4j+s://4f900673.databases.neo4j.io"
-AUTH = ("neo4j", "o_oB00gE9NkoBAOGcvp_Xs2ymTN3c44HVgu85qIEJVk")
-driver = GraphDatabase.driver(URI, auth=AUTH)
+    modelo = SimpleNN(X.shape[1], len(np.unique(y)))
 
-# Modelos de requisição
+    try:
+        modelo.load_state_dict(torch.load('modelo_treinado.pth'))
+        modelo.eval()
+    except (FileNotFoundError, RuntimeError):
+        modelo.train()
+        optimizer = torch.optim.Adam(modelo.parameters(), lr=0.001)
+        criterion = torch.nn.CrossEntropyLoss()
+        entrada_tensor = torch.from_numpy(X).float()
+        target_tensor = torch.tensor(y, dtype=torch.long)
+
+        optimizer.zero_grad()
+        output = modelo(entrada_tensor)
+        loss = criterion(output, target_tensor)
+        loss.backward()
+        optimizer.step()
+
+        torch.save(modelo.state_dict(), 'modelo_treinado.pth')
+
+    return modelo, encoder
+
+# FastAPI + modelos
+app = FastAPI()
+
 class TreinoData(BaseModel):
     pergunta: str
     query: str
@@ -125,137 +113,22 @@ class TreinoData(BaseModel):
 class Pergunta(BaseModel):
     pergunta: str
 
-# Inicializando a API FastAPI
-app = FastAPI()
+# Neo4j
+URI = "neo4j+s://4f900673.databases.neo4j.io"
+AUTH = ("neo4j", "o_oB00gE9NkoBAOGcvp_Xs2ymTN3c44HVgu85qIEJVk")
 
-# Endpoints
-@app.post("/treinar/")
-def treinar(data: TreinoData):
-    if not data.pergunta or not data.query:
-        raise HTTPException(status_code=400, detail="Pergunta e query são obrigatórias")
-
-    termos = entender_pergunta(data.pergunta)
-    texto_proc = " ".join(termos)
-
-    # Carrega e salva os dados
-    dados = carregar_dados()
-    dados['dados_treino'].append((data.pergunta, data.query))
-    salvar_dados(dados)
-
-    # Gera a nova entrada vetorizada e normalizada
-    X_new = vectorizer.transform([texto_proc])
-    X_new_array = normalizer.transform(X_new.toarray())
-
-    # Atualiza os labels no encoder
-    if data.query not in encoder.classes_:
-        novas_classes = list(encoder.classes_) + [data.query]
-        encoder.classes_ = np.array(novas_classes)
-
-    y_new = encoder.transform([data.query])
-
-    # Converte para tensores
-    entrada_tensor = torch.tensor(X_new_array, dtype=torch.float32)
-    target_tensor = torch.tensor(y_new, dtype=torch.long)
-
-    # Treina o modelo incrementalmente
-    modelo_pytorch.train()
-    optimizer.zero_grad()
-    output = modelo_pytorch(entrada_tensor)
-    loss = criterion(output, target_tensor)
-    loss.backward()
-    optimizer.step()
-
-    # Salva o estado atual do modelo
-    torch.save(modelo_pytorch.state_dict(), 'modelo_treinado.pth')
-
-    return {
-        "mensagem": "Treinamento realizado com sucesso.",
-        "loss": loss.item()
-    }
-
-# Ajustando o código para lidar com as classes dinamicamente
-
-# Atualize a função carregar_modelo para lidar com isso de maneira adequada
-def carregar_modelo():
-    dados = carregar_dados()
-    perguntas_treino = [item[0] for item in dados['dados_treino']]
-    queries_treino = [item[1] for item in dados['dados_treino']]
-
-    encoder = LabelEncoder()
-    encoder.fit(queries_treino)
-    y_train_encoded = encoder.transform(queries_treino)
-    numero_de_classes = len(np.unique(y_train_encoded))  # Número de classes de queries
-
-    termos_proc = [" ".join(entender_pergunta(p)) for p in perguntas_treino]
-    X = vectorizer.fit_transform(termos_proc)
-    input_size = X.shape[1]  # Número de características baseado no TfidfVectorizer
-
-    modelo_pytorch = SimpleNN(input_size, numero_de_classes)
-
-    try:
-        modelo_pytorch.load_state_dict(torch.load('modelo_treinado.pth'))
-        modelo_pytorch.eval()
-    except (FileNotFoundError, RuntimeError):
-        modelo_pytorch.train()
-
-    return modelo_pytorch, encoder
-
-# Função de consulta
-@app.post("/consultar_multa/")
-def consultar_multas(data: Pergunta):
-    pergunta = data.pergunta
-    
-    try:
-        modelo_pytorch, encoder = carregar_modelo()
-    except Exception as e:
-        return {"erro": f"Erro ao carregar o modelo: {str(e)}"}
-
-    # Pré-processamento
-    try:
-        termos = entender_pergunta(pergunta)
-        texto_proc = " ".join(termos)
-        X = vectorizer.transform([texto_proc])
-        X_array = normalizer.transform(X.toarray())
-    except Exception as e:
-        return {"erro": f"Erro ao processar a pergunta: {str(e)}"}
-
-    # Previsão com o modelo
-    try:
-        modelo_pytorch.eval()
-        with torch.no_grad():
-            entrada_tensor = torch.tensor(X_array, dtype=torch.float32)
-            output = modelo_pytorch(entrada_tensor)
-            predicted_idx = torch.argmax(output, dim=1).item()
-            query_prevista = encoder.inverse_transform([predicted_idx])[0]
-    except Exception as e:
-        return {"erro": f"Erro ao prever a query: {str(e)}"}
-
-    # Executar a consulta no Neo4j
-    try:
-        with GraphDatabase.driver("conexao", auth=("neo4j", "senha")) as driver:
-            resultado = executar_query(driver, query_prevista)
-            resposta = gerar_resposta(query_prevista, resultado)
-    except Exception as e:
-        return {"erro": f"Erro ao executar a consulta no banco de dados: {str(e)}"}
-
-    return {
-        "resposta": resposta + "\n\n(IA) Resposta gerada com base nos dados de treino."
-    }
-
-# Função para executar consulta no Neo4j
 def executar_query(driver, query):
     try:
         with driver.session() as session:
             result = session.run(query)
             return [dict(record) for record in result]
     except Exception as e:
-        return {"erro": f"Erro ao executar a consulta no banco de dados: {e}"}
+        return {"erro": f"Erro ao executar a consulta: {e}"}
 
-# Função para gerar resposta formatada
 def gerar_resposta(query, resultado):
     if not resultado:
         return "Nenhuma informação encontrada para essa consulta."
-    
+
     if "ORDER BY m.valor DESC" in query or "ORDER BY m.valor ASC" in query:
         m = resultado[0]
         return f"A multa é: {m.get('tipo')} (Art. {m.get('artigo')})\nGravidade: {m.get('gravidade')} | Valor: R$ {m.get('valor'):.2f} | Pontos: {m.get('pontos')}"
@@ -268,86 +141,71 @@ def gerar_resposta(query, resultado):
 
     return str(resultado)
 
-# Função de treinamento incremental
-def aprender(pergunta, query_correta):
-    dados = carregar_dados()
-    dados['novos_dados'].append({'pergunta': pergunta, 'query': query_correta})
-    dados['dados_treino'].append({"pergunta": pergunta, "query": query_correta})
-    salvar_dados(dados)
-    return f"Exemplo adicionado: {pergunta}"
-
-# Função para consultar com confirmação
-def consultar_com_confirmacao(driver, pergunta):
-    dados = carregar_dados()
-    perguntas_treino = [item[0] for item in dados['dados_treino']]
-    queries_treino = [item[1] for item in dados['dados_treino']]
-
-    termos_chave = entender_pergunta(pergunta)
-    texto_processado = " ".join(termos_chave)
-
-    # Usando o vectorizer e normalizer globais
-    X_train = vectorizer.transform([texto_processado])  # Usar transform ao invés de fit_transform
-    X_train = normalizer.transform(X_train.toarray())  # Usar transform ao invés de fit_transform
-
-    # Se já for uma pergunta treinada
-    if pergunta in perguntas_treino:
-        idx = perguntas_treino.index(pergunta)
-        query_prevista = queries_treino[idx]
-        return gerar_resposta(query_prevista, executar_query(driver, query_prevista))
-    
-    # Caso seja uma nova pergunta
-    return "Pergunta não encontrada. Você pode ensiná-la à IA."
-
-# Inicializando o modelo e o otimizador
-def inicializar_modelo():
-    dados = carregar_dados()
-    perguntas_treino = [item[0] for item in dados['dados_treino']]
-    queries_treino = [item[1] for item in dados['dados_treino']]
-
-    perguntas_processadas = [" ".join(entender_pergunta(p)) for p in perguntas_treino]
-
-    # Usando o vectorizer e normalizer globais
-    X_train = vectorizer.fit_transform(perguntas_processadas)  # Usando fit_transform uma vez
-    X_train = normalizer.fit_transform(X_train.toarray())  # Usando fit_transform uma vez
-
-    X_tensor = torch.tensor(X_train.toarray(), dtype=torch.float32)
-
-    encoder = LabelEncoder()
-    y_train_encoded = encoder.fit_transform(queries_treino)
-    y_tensor = torch.tensor(y_train_encoded, dtype=torch.long)
-
-    modelo_pytorch = SimpleNN(X_train.shape[1], len(np.unique(y_tensor.numpy())))
-
-    optimizer = optim.Adam(modelo_pytorch.parameters(), lr=0.001)
-    criterion = nn.CrossEntropyLoss()
-
-    # Treinamento do modelo
-    for epoch in range(100):
-        modelo_pytorch.train()
-        optimizer.zero_grad()
-        output = modelo_pytorch(X_tensor)
-        loss = criterion(output, y_tensor)
-        loss.backward()
-        optimizer.step()
-
-    return modelo_pytorch
-
-# Função principal para treinar a IA
+# Endpoint para treinamento incremental
 @app.post("/treinar/")
 def treinar(data: TreinoData):
-    pergunta = data.pergunta
-    query_correta = data.query
-    aprender(pergunta, query_correta)
-    return {"mensagem": "Treinamento realizado com sucesso!"}
+    dados = carregar_dados()
+    dados["dados_treino"].append({"pergunta": data.pergunta, "query": data.query})
+    dados["novos_dados"].append({"pergunta": data.pergunta, "query": data.query})
+    salvar_dados(dados)
 
-# Função para consultar multas
+    termos = entender_pergunta(data.pergunta)
+    texto_proc = " ".join(termos)
+
+    modelo, _ = carregar_modelo()
+    if modelo is None:
+        return {"mensagem": "Modelo inicializado, mas sem dados suficientes para treinar."}
+
+    if data.query not in encoder.classes_:
+        encoder.classes_ = np.append(encoder.classes_, data.query)
+
+    X_new = vectorizer.transform([texto_proc])
+    X_new_array = normalizer.transform(X_new.toarray())
+    y_new = encoder.transform([data.query])
+
+    entrada_tensor = torch.tensor(X_new_array, dtype=torch.float32)
+    target_tensor = torch.tensor(y_new, dtype=torch.long)
+
+    modelo.train()
+    optimizer = torch.optim.Adam(modelo.parameters(), lr=0.001)
+    criterion = torch.nn.CrossEntropyLoss()
+
+    optimizer.zero_grad()
+    output = modelo(entrada_tensor)
+    loss = criterion(output, target_tensor)
+    loss.backward()
+    optimizer.step()
+
+    torch.save(modelo.state_dict(), 'modelo_treinado.pth')
+
+    return {"mensagem": "Treinamento realizado com sucesso.", "loss": loss.item()}
+
+# Endpoint para consulta
 @app.post("/consultar_multa/")
-def consultar_multas(pergunta: Pergunta):
-    pergunta = pergunta.pergunta
-    
-    with GraphDatabase.driver("conexao", auth=("neo4j", "senha")) as driver:
-        resposta = consultar_com_confirmacao(driver, pergunta)
-        return {"resposta": resposta}
+def consultar_multa(data: Pergunta):
+    modelo, encoder = carregar_modelo()
+    if modelo is None:
+        return {"erro": "Modelo ainda não treinado com dados suficientes."}
+
+    termos = entender_pergunta(data.pergunta)
+    texto_proc = " ".join(termos)
+    X = vectorizer.transform([texto_proc])
+    X_array = normalizer.transform(X.toarray())
+
+    with torch.no_grad():
+        entrada_tensor = torch.tensor(X_array, dtype=torch.float32)
+        output = modelo(entrada_tensor)
+        predicted_idx = torch.argmax(output, dim=1).item()
+        query_prevista = encoder.inverse_transform([predicted_idx])[0]
+
+    with GraphDatabase.driver(URI, auth=AUTH) as driver:
+        resultado = executar_query(driver, query_prevista)
+        resposta = gerar_resposta(query_prevista, resultado)
+
+    return {
+        "resposta": resposta + "\n\n(IA) Resposta gerada com base nos dados de treino."
+    }
+
 
 
 #neo4j+s://4f900673.databases.neo4j.io neo4j+s://4f900673.databases.neo4j.io
