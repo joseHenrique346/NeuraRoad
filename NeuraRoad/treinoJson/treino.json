@@ -2,11 +2,31 @@
     "dados_treino": [
         {
             "pergunta": "Quais infrações são consideradas gravíssimas?",
-            "query": "MATCH (m:Multa) WHERE toLower(m.gravidade) = 'gravíssima' RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos"
+            "query": "MATCH (m:Multa) WHERE toLower(m.gravidade) = 'gravíssima' RETURN m LIMIT 5"
         },
         {
-            "pergunta": "Mostre multas por excesso de velocidade",
-            "query": "MATCH (m:Multa) WHERE toLower(m.tipo) CONTAINS 'excesso' RETURN m.tipo AS tipo, m.gravidade AS gravidade, m.valor AS valor, m.artigo AS artigo, m.pontos AS pontos"
+            "pergunta": "Qual é a multa de maior valor?",
+            "query": "MATCH (m:Multa) RETURN m ORDER BY m.valor DESC LIMIT 1"
+        },
+        {
+            "pergunta": "Quais infrações são mais frequentes?",
+            "query": "MATCH (m:Multa) RETURN m LIMIT 3"
+        },
+        {
+            "pergunta": "Me diga qual a infração mais cara",
+            "query": "MATCH (m:Multa) RETURN m ORDER BY m.valor DESC LIMIT 1"
+        },
+        {
+            "pergunta": "Qual o valor da multa mais alta?",
+            "query": "MATCH (m:Multa) RETURN m ORDER BY m.valor DESC LIMIT 1"
+        },
+        {
+            "pergunta": "Liste multas gravíssimas",
+            "query": "MATCH (m:Multa) WHERE toLower(m.gravidade) = 'gravíssima' RETURN m LIMIT 5"
+        },
+        {
+            "pergunta": "Liste multas por excesso de velocidade",
+            "query": "MATCH (m:Multa) WHERE toLower(m.tipo) CONTAINS 'excesso' RETURN m LIMIT 5"
         }
     ],
     "novos_dados": []
