@@ -39,7 +39,7 @@ file_path = 'treinoJson/treino.json'
 def reescrever_com_llm(resposta_ia, pergunta):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer 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",
+        "Authorization": f"Bearer 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",
         "Content-Type": "application/json"
     }
 
@@ -321,8 +321,8 @@ def consultar_multa(data: Pergunta):
 
     return {
         #"query_prevista": query_prevista,
-        "Response": resposta,
-        #"response_reescrita": resposta_reescrita
+        #"Response": resposta,
+        "response_reescrita": resposta_reescrita
     }
 
 
