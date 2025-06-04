@@ -316,9 +316,13 @@ def consultar_multa(data: Pergunta):
 
     resposta = gerar_resposta(query_prevista, resultado)
 
+    # Chama a função de reescrita via LLM
+    resposta_reescrita = reescrever_com_llm(resposta, data.pergunta)
+
     return {
-        "query_prevista": query_prevista,
-        "Response": resposta + "\n\n(IA) Resposta gerada com base nos dados de treino."
+        #"query_prevista": query_prevista,
+        "Response": resposta,
+        #"response_reescrita": resposta_reescrita
     }
 
 
