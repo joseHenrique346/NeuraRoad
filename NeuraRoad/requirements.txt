@@ -1,0 +1,9 @@
+torch
+numpy
+spacy
+scikit-learn
+fastapi
+pydantic[dotenv]
+uvicorn
+requests
+neo4j

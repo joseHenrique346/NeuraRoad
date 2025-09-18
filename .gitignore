@@ -12,6 +12,8 @@ ehthumbs.db
 *.msm
 *.msp
 
+.vs/
+
 # User-specific files
 *.user
 *.userosscache
@@ -59,3 +61,6 @@ __pycache__/
 # Backup files
 *.bak
 *.swp
+
+#json de treinamento
+treinoJson/treino.json
