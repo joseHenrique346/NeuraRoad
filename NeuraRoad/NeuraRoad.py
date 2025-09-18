@@ -39,7 +39,7 @@ file_path = 'treinoJson/treino.json'
 def reescrever_com_llm(resposta_ia, pergunta):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer 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",
+        "Authorization": f"Bearer api_key",
         "Content-Type": "application/json"
     }
 
@@ -123,8 +123,8 @@ class Pergunta(BaseModel):
     pergunta: str
 
 # Neo4j
-URI = "neo4j+s://4f900673.databases.neo4j.io"
-AUTH = ("neo4j", "o_oB00gE9NkoBAOGcvp_Xs2ymTN3c44HVgu85qIEJVk")
+URI = "conexao"
+AUTH = ("neo4j", "senha")
 
 def executar_query(session, query):
     try:
@@ -324,9 +324,3 @@ def consultar_multa(data: Pergunta):
         #"Response": resposta,
         "response_reescrita": resposta_reescrita
     }
-
-
-#neo4j+s://4f900673.databases.neo4j.io neo4j+s://4f900673.databases.neo4j.io
-#o_oB00gE9NkoBAOGcvp_Xs2ymTN3c44HVgu85qIEJVk o_oB00gE9NkoBAOGcvp_Xs2ymTN3c44HVgu85qIEJVk
-
-#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
