@@ -34,12 +34,13 @@ O projeto foi pensado para ser **incremental**: você pode adicionar novas pergu
 ---
 
 ## 📂 Estrutura do projeto
-.
+```txt
 ├── treinoJson/
 │ └── treino.json # Base de treino (perguntas + queries)
 ├── main.py # Código principal da API
 ├── requirements.txt # Dependências do projeto
 └── README.md # Este arquivo
+```
 
 
 
